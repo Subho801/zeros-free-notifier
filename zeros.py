@@ -35,10 +35,11 @@ def fetch_giveaways():
     r = requests.get(PAGE_URL, headers=HEADERS, timeout=30)
     r.raise_for_status()
 
+    # Fix encoding
     r.encoding = r.apparent_encoding
-html = r.text
+    html = r.text
 
-soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
 
     title = soup.find("title")
     page_title = title.get_text(strip=True) if title else "Zeros Group Free Giveaway"
