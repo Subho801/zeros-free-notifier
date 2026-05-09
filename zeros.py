@@ -32,6 +32,10 @@ def make_id(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def clean_text(text):
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def fetch_giveaways():
     r = requests.get(PAGE_URL, headers=HEADERS, timeout=30)
     r.raise_for_status()
@@ -39,93 +43,101 @@ def fetch_giveaways():
     r.encoding = r.apparent_encoding
     soup = BeautifulSoup(r.text, "html.parser")
 
-    title_tag = soup.find("title")
-    page_title = title_tag.get_text(strip=True) if title_tag else "ZerosGroup Giveaway"
+    giveaways = []
 
-    text = soup.get_text("\n", strip=True)
+    cards = soup.find_all(["div", "article", "section"])
 
-    image_url = None
-    images = []
+    for card in cards:
+        card_text = clean_text(card.get_text(" ", strip=True))
 
-    for img in soup.find_all("img"):
-        src = img.get("src")
-        if not src:
+        if "Remaining inventory" not in card_text:
             continue
 
-        full_url = urljoin(PAGE_URL, src)
+        inventory_match = re.search(r"Remaining inventory\s*(\d+)\s*/\s*(\d+)", card_text, re.IGNORECASE)
 
-        bad_words = [
-            "avatar",
-            "logo",
-            "icon",
-            "steamcommunity",
-            "default",
-            "emoji"
-        ]
+        if inventory_match:
+            remaining = inventory_match.group(1)
+            total = inventory_match.group(2)
+            keys_text = f"{remaining} / {total}"
+        else:
+            remaining = "Unknown"
+            total = "Unknown"
+            keys_text = "Unknown"
 
-        if any(word in full_url.lower() for word in bad_words):
-            continue
+        img_tag = card.find("img")
+        image_url = None
+        if img_tag and img_tag.get("src"):
+            image_url = urljoin(PAGE_URL, img_tag.get("src"))
 
-        images.append(full_url)
+        link_tag = card.find("a", href=True)
+        giveaway_url = PAGE_URL
+        if link_tag:
+            giveaway_url = urljoin(PAGE_URL, link_tag["href"])
 
-    if images:
-        image_url = images[-1]
+        possible_title = None
 
-    key_amount = "Unknown"
+        for tag in card.find_all(["h1", "h2", "h3", "h4", "strong", "b", "a"]):
+            t = clean_text(tag.get_text(" ", strip=True))
+            if len(t) > 10 and "Remaining inventory" not in t and "tasks" not in t.lower():
+                possible_title = t
+                break
 
-    patterns = [
-        r"(\d{2,6})\s*(?:keys|key|份|个|枚|激活码)",
-        r"(?:剩余|库存|数量|发放)\D{0,10}(\d+)",
-        r"🔑\s*(\d+)"
-    ]
+        if not possible_title:
+            title_match = re.search(r"(\[[^\]]+\].{10,120})", card_text)
+            possible_title = title_match.group(1) if title_match else "Random Steam Key Giveaway"
 
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            key_amount = match.group(1)
-            break
+        status = "Available"
+        if remaining != "Unknown" and int(remaining) <= 0:
+            status = "Completed"
 
-    giveaway_id = make_id(page_title + text[:1000] + str(image_url))
+        giveaway_id = make_id(possible_title + giveaway_url)
 
-    return [{
-        "id": giveaway_id,
-        "title": "Random Steam Key Giveaway [v2.1]",
-        "original_title": page_title,
-        "url": PAGE_URL,
-        "source": "Subho's ZerosGroup Giveaway",
-        "status": "Available",
-        "keys": key_amount,
-        "image": image_url,
-    }]
+        giveaways.append({
+            "id": giveaway_id,
+            "title": "Random Steam Key Giveaway",
+            "original_title": possible_title,
+            "url": giveaway_url,
+            "source": "Subho's ZerosGroup Giveaway",
+            "status": status,
+            "keys": keys_text,
+            "image": image_url,
+        })
+
+    if not giveaways:
+        raise RuntimeError("No giveaway cards found. Website layout may have changed.")
+
+    return giveaways
 
 
 def send_discord(item):
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+
     embed = {
         "title": f"🎁 {item['title']}",
         "url": item["url"],
-        "description": f"Source: {item['source']}",
+        "description": f"**{item['original_title']}**\nSource: {item['source']}",
         "color": 0x2ecc71,
         "fields": [
-    {
-        "name": "Status",
-        "value": f"✅ {item['status']}",
-        "inline": True
-    },
-    {
-        "name": "Keys",
-        "value": f"🔑 {item['keys']}",
-        "inline": True
-    },
-    {
-        "name": "Posted",
-        "value": f"<t:{int(datetime.now().timestamp())}:R>",
-        "inline": True
-    }
-],
+            {
+                "name": "Status",
+                "value": f"✅ {item['status']}",
+                "inline": True
+            },
+            {
+                "name": "Keys",
+                "value": f"🔑 {item['keys']}",
+                "inline": True
+            },
+            {
+                "name": "Posted",
+                "value": f"<t:{now_ts}:R>",
+                "inline": True
+            }
+        ],
         "footer": {
-    "text": "Subho's ZerosGroup Giveaway Notifier",
-    "icon_url": "https://files.catbox.moe/qttqpy.png"
-},
+            "text": "Subho's ZerosGroup Giveaway Notifier",
+            "icon_url": "https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
+        },
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
@@ -157,9 +169,9 @@ def main():
     for item in new_items:
         send_discord(item)
         posted.add(item["id"])
-        print(f"Posted: {item['title']}")
+        print(f"Posted: {item['original_title']}")
 
-    state["posted"] = list(posted)[-100:]
+    state["posted"] = list(posted)[-200:]
     save_state(state)
 
 
