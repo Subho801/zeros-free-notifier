@@ -59,7 +59,7 @@ def send_discord(item):
         "description": item["description"],
         "color": 0x00ff99,
         "footer": {
-            "text": "Zeros Group Free Giveaway Notifier"
+            "text": "Subho's Zeros Group Notifier"
         },
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
