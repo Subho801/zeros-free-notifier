@@ -35,47 +35,85 @@ def fetch_giveaways():
     r = requests.get(PAGE_URL, headers=HEADERS, timeout=30)
     r.raise_for_status()
 
-    # Fix encoding
     r.encoding = r.apparent_encoding
-    html = r.text
-
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(r.text, "html.parser")
 
     title = soup.find("title")
-    page_title = title.get_text(strip=True) if title else "Zeros Group Free Giveaway"
+    page_title = title.get_text(strip=True) if title else "ZerosGroup Giveaway"
 
     text = soup.get_text("\n", strip=True)
 
-    giveaway_id = make_id(text[:2000])
+    # Auto find first good image from page
+    image_url = None
+    for img in soup.find_all("img"):
+        src = img.get("src")
+        if not src:
+            continue
+        if src.startswith("//"):
+            src = "https:" + src
+        elif src.startswith("/"):
+            src = "http://zeros.group" + src
+        elif not src.startswith("http"):
+            src = PAGE_URL + src
+        image_url = src
+        break
+
+    # Auto find key amount from text
+    import re
+    key_amount = "Unknown"
+    key_patterns = [
+        r"(\d+)\s*(?:keys|key|份|个|枚|激活码)",
+        r"(?:keys|key|数量|剩余|库存|amount).*?(\d+)",
+        r"🔑\s*(\d+)"
+    ]
+
+    for pattern in key_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            key_amount = match.group(1)
+            break
+
+    giveaway_id = make_id(page_title + text[:1000] + str(image_url))
 
     return [{
         "id": giveaway_id,
         "title": page_title,
         "url": PAGE_URL,
-        "description": text[:400] if text else "New free giveaway page update detected.",
+        "source": "Megumin's ZerosGroup Giveaway",
+        "status": "Available",
+        "keys": key_amount,
+        "image": image_url,
     }]
 
 
 def send_discord(item):
     embed = {
-        "title": item["title"],
+        "title": f"🎁 {item['title']}",
         "url": item["url"],
-        "description": item["description"],
-        "color": 0x00ff99,
+        "description": f"来自： {item['source']}",
+        "color": 0x2ecc71,
+        "fields": [
+            {
+                "name": f"✅ {item['status']}  |  🔑 {item['keys']}",
+                "value": "\u200b",
+                "inline": False
+            }
+        ],
         "footer": {
-            "text": "Subho's Zeros Group Notifier"
+            "text": "ZerosGroup Giveaway Notifier"
         },
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
+    if item.get("image"):
+        embed["image"] = {"url": item["image"]}
+
     payload = {
-        "content": "🎁 **New Zeros Group free giveaway/update detected!**",
         "embeds": [embed]
     }
 
     res = requests.post(WEBHOOK_URL, json=payload, timeout=30)
     res.raise_for_status()
-
 
 def main():
     if not WEBHOOK_URL:
