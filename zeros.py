@@ -43,12 +43,43 @@ def fetch_giveaways():
 
     text = soup.get_text("\n", strip=True)
 
-    # Auto find first good image from page
-    image_url = None
-    for img in soup.find_all("img"):
-        src = img.get("src")
-        if not src:
-            continue
+    # Find best giveaway image
+image_url = None
+
+images = []
+
+for img in soup.find_all("img"):
+    src = img.get("src")
+
+    if not src:
+        continue
+
+    if src.startswith("//"):
+        src = "https:" + src
+    elif src.startswith("/"):
+        src = "http://zeros.group" + src
+    elif not src.startswith("http"):
+        src = PAGE_URL + src
+
+    # Ignore small/logo/useless images
+    bad_words = [
+        "avatar",
+        "logo",
+        "icon",
+        "steamcommunity",
+        "default",
+        "emoji",
+        "banner"
+    ]
+
+    if any(word in src.lower() for word in bad_words):
+        continue
+
+    images.append(src)
+
+# Use biggest/last useful image
+if images:
+    image_url = images[-1]
         if src.startswith("//"):
             src = "https:" + src
         elif src.startswith("/"):
@@ -60,18 +91,21 @@ def fetch_giveaways():
 
     # Auto find key amount from text
     import re
-    key_amount = "Unknown"
-    key_patterns = [
-        r"(\d+)\s*(?:keys|key|份|个|枚|激活码)",
-        r"(?:keys|key|数量|剩余|库存|amount).*?(\d+)",
-        r"🔑\s*(\d+)"
-    ]
 
-    for pattern in key_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            key_amount = match.group(1)
-            break
+key_amount = "Unknown"
+
+patterns = [
+    r"(\d{2,6})\s*(?:keys|key|份|个|枚|激活码)",
+    r"(?:剩余|库存|数量|发放)\D{0,10}(\d+)",
+    r"🔑\s*(\d+)"
+]
+
+for pattern in patterns:
+    match = re.search(pattern, text, re.IGNORECASE)
+
+    if match:
+        key_amount = match.group(1)
+        break
 
     giveaway_id = make_id(page_title + text[:1000] + str(image_url))
 
@@ -79,7 +113,7 @@ def fetch_giveaways():
         "id": giveaway_id,
         "title": page_title,
         "url": PAGE_URL,
-        "source": "Megumin's ZerosGroup Giveaway",
+        "source": "Subho's ZerosGroup Giveaway",
         "status": "Available",
         "keys": key_amount,
         "image": image_url,
