@@ -106,12 +106,22 @@ def send_discord(item):
         "description": f"Source: {item['source']}",
         "color": 0x2ecc71,
         "fields": [
-            {
-                "name": f"✅ {item['status']}  |  🔑 {item['keys']}",
-                "value": "\u200b",
-                "inline": False
-            }
-        ],
+    {
+        "name": "Status",
+        "value": f"✅ {item['status']}",
+        "inline": True
+    },
+    {
+        "name": "Keys",
+        "value": f"🔑 {item['keys']}",
+        "inline": True
+    },
+    {
+        "name": "Posted",
+        "value": f"<t:{int(datetime.now().timestamp())}:R>",
+        "inline": True
+    }
+],
         "footer": {
     "text": "Subho's ZerosGroup Giveaway Notifier",
     "icon_url": "https://files.catbox.moe/qttqpy.png"
