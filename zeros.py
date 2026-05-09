@@ -89,7 +89,8 @@ def fetch_giveaways():
 
     return [{
         "id": giveaway_id,
-        "title": page_title,
+        "title": "Random Steam Key Giveaway [v2.1]",
+        "original_title": page_title,
         "url": PAGE_URL,
         "source": "Subho's ZerosGroup Giveaway",
         "status": "Available",
@@ -102,7 +103,7 @@ def send_discord(item):
     embed = {
         "title": f"🎁 {item['title']}",
         "url": item["url"],
-        "description": f"来自： {item['source']}",
+        "description": f"**{item['original_title']}**\nSource: {item['source']}",
         "color": 0x2ecc71,
         "fields": [
             {
