@@ -103,7 +103,7 @@ def send_discord(item):
     embed = {
         "title": f"🎁 {item['title']}",
         "url": item["url"],
-        "description": f"**{item['original_title']}**\nSource: {item['source']}",
+        "description": f"Source: {item['source']}",
         "color": 0x2ecc71,
         "fields": [
             {
@@ -113,8 +113,9 @@ def send_discord(item):
             }
         ],
         "footer": {
-            "text": "ZerosGroup Giveaway Notifier"
-        },
+    "text": "Subho's ZerosGroup Giveaway Notifier",
+    "icon_url": "https://files.catbox.moe/qttqpy.png"
+},
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
