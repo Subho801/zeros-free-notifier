@@ -1,13 +1,14 @@
 import os
 import json
 import hashlib
+import re
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
+from urllib.parse import urljoin
 
 PAGE_URL = "http://zeros.group/free/"
 STATE_FILE = "posted_zeros.json"
-
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
 HEADERS = {
@@ -38,74 +39,51 @@ def fetch_giveaways():
     r.encoding = r.apparent_encoding
     soup = BeautifulSoup(r.text, "html.parser")
 
-    title = soup.find("title")
-    page_title = title.get_text(strip=True) if title else "ZerosGroup Giveaway"
+    title_tag = soup.find("title")
+    page_title = title_tag.get_text(strip=True) if title_tag else "ZerosGroup Giveaway"
 
     text = soup.get_text("\n", strip=True)
 
-    # Find best giveaway image
-image_url = None
+    image_url = None
+    images = []
 
-images = []
+    for img in soup.find_all("img"):
+        src = img.get("src")
+        if not src:
+            continue
 
-for img in soup.find_all("img"):
-    src = img.get("src")
+        full_url = urljoin(PAGE_URL, src)
 
-    if not src:
-        continue
+        bad_words = [
+            "avatar",
+            "logo",
+            "icon",
+            "steamcommunity",
+            "default",
+            "emoji"
+        ]
 
-    if src.startswith("//"):
-        src = "https:" + src
-    elif src.startswith("/"):
-        src = "http://zeros.group" + src
-    elif not src.startswith("http"):
-        src = PAGE_URL + src
+        if any(word in full_url.lower() for word in bad_words):
+            continue
 
-    # Ignore small/logo/useless images
-    bad_words = [
-        "avatar",
-        "logo",
-        "icon",
-        "steamcommunity",
-        "default",
-        "emoji",
-        "banner"
+        images.append(full_url)
+
+    if images:
+        image_url = images[-1]
+
+    key_amount = "Unknown"
+
+    patterns = [
+        r"(\d{2,6})\s*(?:keys|key|份|个|枚|激活码)",
+        r"(?:剩余|库存|数量|发放)\D{0,10}(\d+)",
+        r"🔑\s*(\d+)"
     ]
 
-    if any(word in src.lower() for word in bad_words):
-        continue
-
-    images.append(src)
-
-# Use biggest/last useful image
-if images:
-    image_url = images[-1]
-        if src.startswith("//"):
-            src = "https:" + src
-        elif src.startswith("/"):
-            src = "http://zeros.group" + src
-        elif not src.startswith("http"):
-            src = PAGE_URL + src
-        image_url = src
-        break
-
-    # Auto find key amount from text
-    import re
-
-key_amount = "Unknown"
-
-patterns = [
-    r"(\d{2,6})\s*(?:keys|key|份|个|枚|激活码)",
-    r"(?:剩余|库存|数量|发放)\D{0,10}(\d+)",
-    r"🔑\s*(\d+)"
-]
-
-for pattern in patterns:
-    match = re.search(pattern, text, re.IGNORECASE)
-
-    if match:
-        key_amount = match.group(1)
-        break
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            key_amount = match.group(1)
+            break
 
     giveaway_id = make_id(page_title + text[:1000] + str(image_url))
 
@@ -148,6 +126,7 @@ def send_discord(item):
 
     res = requests.post(WEBHOOK_URL, json=payload, timeout=30)
     res.raise_for_status()
+
 
 def main():
     if not WEBHOOK_URL:
