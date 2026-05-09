@@ -35,7 +35,10 @@ def fetch_giveaways():
     r = requests.get(PAGE_URL, headers=HEADERS, timeout=30)
     r.raise_for_status()
 
-    soup = BeautifulSoup(r.text, "html.parser")
+    r.encoding = r.apparent_encoding
+html = r.text
+
+soup = BeautifulSoup(html, "html.parser")
 
     title = soup.find("title")
     page_title = title.get_text(strip=True) if title else "Zeros Group Free Giveaway"
@@ -48,7 +51,7 @@ def fetch_giveaways():
         "id": giveaway_id,
         "title": page_title,
         "url": PAGE_URL,
-        "description": text[:900] if text else "New free giveaway page update detected.",
+        "description": text[:400] if text else "New free giveaway page update detected.",
     }]
 
 
