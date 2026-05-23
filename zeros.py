@@ -121,9 +121,6 @@ def fetch_giveaways():
         total = inventory_match.group(2)
         keys_text = f"{remaining} / {total}"
 
-        if int(remaining) <= 0:
-            continue
-
         original_title = extract_title(card_text)
 
         link_tag = card.find("a", href=True)
@@ -132,13 +129,15 @@ def fetch_giveaways():
         if link_tag:
             giveaway_url = urljoin(PAGE_URL, link_tag["href"])
 
-        status = "Available"
+       status = "Available"
+embed_color = 0x2ecc71
 
-        try:
-            if int(remaining) <= 0:
-                status = "Completed"
-        except:
-            pass
+try:
+    if int(remaining) <= 0:
+        status = "Expired"
+        embed_color = 0xe74c3c
+except:
+    pass
 
         unique_id = make_id(original_title + image_url + giveaway_url)
 
@@ -171,7 +170,7 @@ def send_discord(item):
     embed = {
         "title": f"🎁 {item['title']}",
         "url": item["url"],
-        "description": f"Source: {item['source']}",
+        "description": "",
         "color": 0x2ecc71,
         "fields": [
             {
