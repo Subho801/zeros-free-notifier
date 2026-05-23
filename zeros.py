@@ -19,6 +19,7 @@ FOOTER_ICON = "https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
 def load_state():
     if not os.path.exists(STATE_FILE):
         return {"posted": []}
+
     with open(STATE_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -39,6 +40,7 @@ def clean_text(text):
 def get_page_html():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
+
         page = browser.new_page(
             viewport={"width": 1400, "height": 1000},
             user_agent="Mozilla/5.0 GiveawayNotifier/1.0"
@@ -48,6 +50,7 @@ def get_page_html():
         page.wait_for_timeout(5000)
 
         html = page.content()
+
         browser.close()
         return html
 
@@ -101,7 +104,15 @@ def fetch_giveaways():
 
         image_url = urljoin(PAGE_URL, src)
 
-        bad_words = ["avatar", "logo", "icon", "emoji", "profile", "user"]
+        bad_words = [
+            "avatar",
+            "logo",
+            "icon",
+            "emoji",
+            "profile",
+            "user"
+        ]
+
         if any(word in image_url.lower() for word in bad_words):
             continue
 
@@ -129,15 +140,15 @@ def fetch_giveaways():
         if link_tag:
             giveaway_url = urljoin(PAGE_URL, link_tag["href"])
 
-       status = "Available"
-embed_color = 0x2ecc71
+        status = "Available"
+        embed_color = 0x2ecc71
 
-try:
-    if int(remaining) <= 0:
-        status = "Expired"
-        embed_color = 0xe74c3c
-except:
-    pass
+        try:
+            if int(remaining) <= 0:
+                status = "Expired"
+                embed_color = 0xe74c3c
+        except ValueError:
+            pass
 
         unique_id = make_id(original_title + image_url + giveaway_url)
 
@@ -155,6 +166,7 @@ except:
             "status": status,
             "keys": keys_text,
             "image": image_url,
+            "color": embed_color,
         })
 
     if not giveaways:
@@ -167,15 +179,17 @@ def send_discord(item):
     now = datetime.now(timezone.utc)
     now_ts = int(now.timestamp())
 
+    status_icon = "✅" if item["status"] == "Available" else "❌"
+
     embed = {
         "title": f"🎁 {item['title']}",
         "url": item["url"],
         "description": "",
-        "color": 0x2ecc71,
+        "color": item["color"],
         "fields": [
             {
                 "name": "Status",
-                "value": f"✅ {item['status']}",
+                "value": f"{status_icon} {item['status']}",
                 "inline": True
             },
             {
@@ -204,6 +218,14 @@ def send_discord(item):
     }
 
     res = requests.post(WEBHOOK_URL, json=payload, timeout=30)
+
+    if res.status_code == 429:
+        retry_after = res.json().get("retry_after", 5)
+        print(f"Rate limited. Sleeping {retry_after} seconds...")
+        time.sleep(float(retry_after) + 1)
+
+        res = requests.post(WEBHOOK_URL, json=payload, timeout=30)
+
     res.raise_for_status()
 
 
@@ -224,7 +246,7 @@ def main():
     for item in new_items[:3]:
         send_discord(item)
         posted.add(item["id"])
-        print(f"Posted: {item['title']} - {item['keys']}")
+        print(f"Posted: {item['title']} - {item['keys']} - {item['status']}")
         time.sleep(3)
 
     state["posted"] = list(posted)[-300:]
