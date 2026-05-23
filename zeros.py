@@ -223,10 +223,10 @@ def main():
         return
 
     for item in new_items[:3]:
-    send_discord(item)
-    posted.add(item["id"])
-    print(f"Posted: {item['title']} - {item['keys']}")
-    time.sleep(3)
+        send_discord(item)
+        posted.add(item["id"])
+        print(f"Posted: {item['title']} - {item['keys']}")
+        time.sleep(3)
 
     state["posted"] = list(posted)[-300:]
     save_state(state)
