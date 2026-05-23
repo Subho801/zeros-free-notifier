@@ -205,7 +205,7 @@ def send_discord(item):
         ],
         "footer": {
             "text": "Subho's ZerosGroup Giveaway Notifier",
-            "icon_url": FOOTER_ICON
+            "icon_url": "https://files.catbox.moe/qttqpy.png"
         },
         "timestamp": now.isoformat()
     }
