@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import hashlib
 import re
 import requests
@@ -120,6 +121,9 @@ def fetch_giveaways():
         total = inventory_match.group(2)
         keys_text = f"{remaining} / {total}"
 
+        if int(remaining) <= 0:
+            continue
+
         original_title = extract_title(card_text)
 
         link_tag = card.find("a", href=True)
@@ -218,10 +222,11 @@ def main():
         print("No new Zeros Group giveaway updates.")
         return
 
-    for item in new_items:
-        send_discord(item)
-        posted.add(item["id"])
-        print(f"Posted: {item['title']} - {item['keys']}")
+    for item in new_items[:3]:
+    send_discord(item)
+    posted.add(item["id"])
+    print(f"Posted: {item['title']} - {item['keys']}")
+    time.sleep(3)
 
     state["posted"] = list(posted)[-300:]
     save_state(state)
