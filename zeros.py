@@ -150,8 +150,9 @@ def fetch_giveaways():
         except ValueError:
             pass
 
-        unique_id = make_id(original_title + image_url + giveaway_url)
-
+        base_id = make_id(image_url + giveaway_url)
+        unique_id = f"{base_id}_{status}"
+        
         if unique_id in seen_cards:
             continue
 
