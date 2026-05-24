@@ -37,6 +37,28 @@ def clean_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
+def deadline_to_discord(deadline_text):
+    if not deadline_text or deadline_text == "Unknown":
+        return "Unknown"
+
+    match = re.search(
+        r"(\d+)\s*(?:days|天)\s*([0-9]{1,2}):([0-9]{2}):([0-9]{2})",
+        deadline_text,
+        re.IGNORECASE
+    )
+
+    if not match:
+        return deadline_text.replace("天", " days")
+
+    days = int(match.group(1))
+    hours = int(match.group(2))
+    minutes = int(match.group(3))
+    seconds = int(match.group(4))
+
+    future_ts = int(time.time()) + days * 86400 + hours * 3600 + minutes * 60 + seconds
+    return f"<t:{future_ts}:R>"
+
+
 def get_page_html():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -105,19 +127,15 @@ def get_deadline(card_text):
     return "Unknown"
 
 
-def is_bad_image(image_url):
-    bad_words = [
-        "avatar",
-        "logo",
-        "icon",
-        "emoji",
-        "profile",
-        "user",
-        "steamcommunity",
-        "default"
-    ]
+def is_good_image(image_url):
+    image_url_lower = image_url.lower()
 
-    return any(word in image_url.lower() for word in bad_words)
+    return (
+        image_url_lower.startswith("http://zeros.group/free/random")
+        or image_url_lower.startswith("https://zeros.group/free/random")
+        or "shared.akamai.steamstatic.com/store_item_assets" in image_url_lower
+        or "cdn.akamai.steamstatic.com/steam/apps" in image_url_lower
+    )
 
 
 def fetch_giveaways():
@@ -135,20 +153,7 @@ def fetch_giveaways():
 
         image_url = urljoin(PAGE_URL, src)
 
-        if is_bad_image(image_url):
-            continue
-
-        width = img.get("width")
-        height = img.get("height")
-
-        try:
-            width = int(width) if width else 0
-            height = int(height) if height else 0
-        except ValueError:
-            width = 0
-            height = 0
-
-        if width and height and width < 250:
+        if not is_good_image(image_url):
             continue
 
         card = find_card_container(img)
@@ -213,9 +218,6 @@ def fetch_giveaways():
 
 
 def send_discord(item):
-    now = datetime.now(timezone.utc)
-    now_ts = int(now.timestamp())
-
     status_icon = "✅" if item["status"] == "Available" else "❌"
 
     embed = {
@@ -236,14 +238,14 @@ def send_discord(item):
             },
             {
                 "name": "Deadline",
-                "value": f"⏳ {item.get('deadline', 'Unknown').replace('天', ' days')}",
+                "value": f"⏳ {deadline_to_discord(item.get('deadline', 'Unknown'))}",
                 "inline": True
-            },
+            }
         ],
         "footer": {
             "text": "Subho's ZerosGroup Giveaway Notifier",
             "icon_url": FOOTER_ICON
-         }
+        }
     }
 
     if item.get("image"):
