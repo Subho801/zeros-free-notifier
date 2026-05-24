@@ -104,6 +104,20 @@ def fetch_giveaways():
 
         image_url = urljoin(PAGE_URL, src)
 
+                width = img.get("width")
+        height = img.get("height")
+
+        try:
+            width = int(width) if width else 0
+            height = int(height) if height else 0
+        except:
+            width = 0
+            height = 0
+
+        # Skip tiny/wrong images
+        if width and height and width < 250:
+            continue
+
         bad_words = [
             "avatar",
             "logo",
