@@ -236,21 +236,14 @@ def send_discord(item):
             },
             {
                 "name": "Deadline",
-                "value": f"⏳ {item.get('deadline', 'Unknown')}",
+                "value": f"⏳ {item.get('deadline', 'Unknown').replace('天', ' days')}",
                 "inline": True
             },
-            {
-                "name": "Posted",
-                "value": f"<t:{now_ts}:R>",
-                "inline": True
-            }
         ],
         "footer": {
             "text": "Subho's ZerosGroup Giveaway Notifier",
             "icon_url": FOOTER_ICON
-        },
-        "timestamp": now.isoformat()
-    }
+         }
 
     if item.get("image"):
         embed["image"] = {"url": item["image"]}
