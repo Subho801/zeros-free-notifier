@@ -13,7 +13,7 @@ PAGE_URL = "http://zeros.group/free/"
 STATE_FILE = "posted_zeros.json"
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-FOOTER_ICON = "https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
+FOOTER_ICON = "https://files.catbox.moe/qttqpy.png"
 
 
 def load_state():
@@ -50,15 +50,15 @@ def get_page_html():
         page.wait_for_timeout(5000)
 
         html = page.content()
-
         browser.close()
+
         return html
 
 
 def find_card_container(img):
     parent = img.parent
 
-    for _ in range(8):
+    for _ in range(10):
         if not parent:
             break
 
@@ -80,13 +80,44 @@ def extract_title(card_text):
     text = re.sub(r"\d+\s*/\s*\d+.*", "", text)
     text = clean_text(text)
 
-    if len(text) > 140:
-        text = text[:140] + "..."
+    if len(text) > 120:
+        text = text[:120] + "..."
 
     if not text:
         return "Random Steam Key Giveaway"
 
     return text
+
+
+def get_deadline(card_text):
+    patterns = [
+        r"(?:As of|Deadline|截止)\s*[:：]?\s*([0-9]+\s*days?\s*[0-9:]+)",
+        r"(?:As of|Deadline|截止)\s*[:：]?\s*([0-9]+\s*天\s*[0-9:]+)",
+        r"([0-9]+\s*days?\s*[0-9:]+)",
+        r"([0-9]+\s*天\s*[0-9:]+)"
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, card_text, re.IGNORECASE)
+        if match:
+            return clean_text(match.group(1))
+
+    return "Unknown"
+
+
+def is_bad_image(image_url):
+    bad_words = [
+        "avatar",
+        "logo",
+        "icon",
+        "emoji",
+        "profile",
+        "user",
+        "steamcommunity",
+        "default"
+    ]
+
+    return any(word in image_url.lower() for word in bad_words)
 
 
 def fetch_giveaways():
@@ -104,30 +135,20 @@ def fetch_giveaways():
 
         image_url = urljoin(PAGE_URL, src)
 
+        if is_bad_image(image_url):
+            continue
+
         width = img.get("width")
         height = img.get("height")
 
         try:
             width = int(width) if width else 0
             height = int(height) if height else 0
-        except:
+        except ValueError:
             width = 0
             height = 0
 
-        # Skip tiny/wrong images
         if width and height and width < 250:
-            continue
-
-        bad_words = [
-            "avatar",
-            "logo",
-            "icon",
-            "emoji",
-            "profile",
-            "user"
-        ]
-
-        if any(word in image_url.lower() for word in bad_words):
             continue
 
         card = find_card_container(img)
@@ -146,6 +167,7 @@ def fetch_giveaways():
         total = inventory_match.group(2)
         keys_text = f"{remaining} / {total}"
 
+        deadline = get_deadline(card_text)
         original_title = extract_title(card_text)
 
         link_tag = card.find("a", href=True)
@@ -164,9 +186,9 @@ def fetch_giveaways():
         except ValueError:
             pass
 
-        base_id = make_id(image_url + giveaway_url)
+        base_id = make_id(giveaway_url + total)
         unique_id = f"{base_id}_{status}"
-        
+
         if unique_id in seen_cards:
             continue
 
@@ -177,9 +199,9 @@ def fetch_giveaways():
             "title": "Random Steam Key Giveaway",
             "original_title": original_title,
             "url": giveaway_url,
-            "source": "Subho's ZerosGroup Giveaway",
             "status": status,
             "keys": keys_text,
+            "deadline": deadline,
             "image": image_url,
             "color": embed_color,
         })
@@ -213,6 +235,11 @@ def send_discord(item):
                 "inline": True
             },
             {
+                "name": "Deadline",
+                "value": f"⏳ {item.get('deadline', 'Unknown')}",
+                "inline": True
+            },
+            {
                 "name": "Posted",
                 "value": f"<t:{now_ts}:R>",
                 "inline": True
@@ -220,7 +247,7 @@ def send_discord(item):
         ],
         "footer": {
             "text": "Subho's ZerosGroup Giveaway Notifier",
-            "icon_url": "https://files.catbox.moe/qttqpy.png"
+            "icon_url": FOOTER_ICON
         },
         "timestamp": now.isoformat()
     }
@@ -238,7 +265,6 @@ def send_discord(item):
         retry_after = res.json().get("retry_after", 5)
         print(f"Rate limited. Sleeping {retry_after} seconds...")
         time.sleep(float(retry_after) + 1)
-
         res = requests.post(WEBHOOK_URL, json=payload, timeout=30)
 
     res.raise_for_status()
@@ -261,7 +287,7 @@ def main():
     for item in new_items[:3]:
         send_discord(item)
         posted.add(item["id"])
-        print(f"Posted: {item['title']} - {item['keys']} - {item['status']}")
+        print(f"Posted: {item['title']} - {item['keys']} - {item['status']} - {item['deadline']}")
         time.sleep(3)
 
     state["posted"] = list(posted)[-300:]
