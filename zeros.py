@@ -104,7 +104,7 @@ def fetch_giveaways():
 
         image_url = urljoin(PAGE_URL, src)
 
-                width = img.get("width")
+        width = img.get("width")
         height = img.get("height")
 
         try:
