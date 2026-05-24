@@ -244,6 +244,7 @@ def send_discord(item):
             "text": "Subho's ZerosGroup Giveaway Notifier",
             "icon_url": FOOTER_ICON
          }
+    }
 
     if item.get("image"):
         embed["image"] = {"url": item["image"]}
